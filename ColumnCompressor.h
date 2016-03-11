@@ -10,33 +10,45 @@ class ColumnCompressor
 {
 public:
     typedef std::array<const char*, MAX_COLUMNS> Columns;
-    ColumnCompressor(char delimiter, size_t nBlockRows);
+    ColumnCompressor(char delimiter, size_t nCacheSize);
+    ~ColumnCompressor();
 
     void Compress(const std::string& inputFileName, const std::string& outputFileName);
-private:
 
+private:
+    void InitializeColumnCache(Columns& columns, size_t columnCount);
+    void AdjustColumnCache(size_t columnCount);
+    void CheckColumnCount(bool hasMoreData, size_t columnCount);
+    bool Copy2Cache(Columns& spliters, size_t& columns);
+    void WriteOutCache(bio::filtering_ostream& outputStream, size_t columnCount);
     bool Next(const char*& currentAddress,const char* endAddress, Columns& spliters, size_t& columns);
 
-
-    //下面这两个变量的位置不能改变
-    const size_t mBlockRows;
+    const size_t mCacheSize;
     size_t mTotalColumns;
 
     size_t mTotalRows;
     size_t mCurrentRowsInBlock;
 
-    struct ColumnInfo
+    struct ColumnCache
     {
-	enum type
-	{
-	    INT, DOUBLE, STRING
-	}Type;
-	std::stringstream ColumnStream;
-    };
+        enum type
+        {
+            INT, DOUBLE, STRING
+        }Type;
+        size_t Index;
 
-    std::shared_ptr<bio::filtering_ostream> mOutputStream;
+        char* CacheBase;
+        char* CacheEnd;
+        char* CacheCur;
+
+        static type ColumnType(const char* pStart, const char* pEnd);
+    };
+    std::array<ColumnCache, MAX_COLUMNS> mCache;
+    std::array<ColumnCache*, MAX_COLUMNS> mOutCache;
+
     char mDelimiter;
     char mNewLine[1];
+    char* mCachePool;
 };
 
 #endif // COLUMNCOMPRESSOR_H
