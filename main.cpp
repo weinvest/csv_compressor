@@ -12,7 +12,7 @@ int main(int argc, char** argv)
             ("compress,c",value<bool>()->default_value(true),"is compress?")
             ("input,i",value<std::string>(),"input file")
             ("output,o",value<std::string>(),"output file")
-            ("rows,r",value<size_t>()->default_value(1<<10),"block rows")
+            ("memory,m",value<size_t>()->default_value(1<<24),"cache memory size")
             ("delimiter,d",value<char>()->default_value(','),"delimiter");
 
     variables_map vm;
@@ -57,7 +57,7 @@ int main(int argc, char** argv)
     bool isCompress = vm["compress"].as<bool>();
     if(isCompress)
     {
-        ColumnCompressor c(vm["delimiter"].as<char>(), vm["rows"].as<size_t>());
+        ColumnCompressor c(vm["delimiter"].as<char>(), vm["memory"].as<size_t>());
         c.Compress(inputFilePath, outputFilePath);
     }
     else

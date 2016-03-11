@@ -4,6 +4,19 @@
 #include <boost/interprocess/file_mapping.hpp>
 #include <boost/interprocess/mapped_region.hpp> 
 #include "ColumnCompressor.h"
+
+struct Flusher
+{
+    Flusher(bio::filtering_ostream& stream):mStream(stream)
+    {}
+
+    ~Flusher()
+    {
+        mStream.flush();
+    }
+
+    bio::filtering_ostream& mStream;
+};
 namespace bip = boost::interprocess;
 ColumnCompressor::ColumnCompressor(char delimiter, size_t nCacheSize)
     :mCacheSize(nCacheSize)
@@ -36,7 +49,7 @@ void ColumnCompressor::Compress(const std::string& inputFileName, const std::str
 {
     //将输入文件映射到内存
     bip::file_mapping inputFile(inputFileName.c_str(), bip::read_only);  
-    bip::mapped_region inputFileRegion(inputFile, bip::read_write);  
+    bip::mapped_region inputFileRegion(inputFile, bip::read_only);
 	  
     const char* startAddress = static_cast<const char*>(inputFileRegion.get_address());  
     auto size  = inputFileRegion.get_size(); 
@@ -50,8 +63,9 @@ void ColumnCompressor::Compress(const std::string& inputFileName, const std::str
 
     //初始化输出流
     bio::filtering_ostream outputStream;
-    outputStream.push(bio::bzip2_decompressor());
+    outputStream.push(bio::bzip2_compressor());
     outputStream.push(bio::file_sink(outputFileName));
+    Flusher flusher(outputStream);
 
     //读入header
     Columns columns;
@@ -107,11 +121,12 @@ void ColumnCompressor::Compress(const std::string& inputFileName, const std::str
 
     copy2Cache(columns, columnCount);
     WriteOutCache(outputStream, columnCount);
+    outputStream.flush();
 }
 
 bool ColumnCompressor::Copy2Cache(Columns& spliters, size_t& columnCount)
 {
-    bool isFull;
+    bool isFull(false);
     for(int32_t iColumn = 0; iColumn < columnCount; ++iColumn)
     {
         auto& columnCache = mCache[iColumn];
@@ -128,17 +143,20 @@ bool ColumnCompressor::Copy2Cache(Columns& spliters, size_t& columnCount)
             }
             break;
         }
-        std::memcpy(columnCache.CacheCur, spliters[iColumn], spliters[iColumn + 1] - spliters[iColumn]);
+        std::memcpy(columnCache.CacheCur, spliters[iColumn], size);
+        columnCache.CacheCur += size;
     }
+    *mCache[columnCount - 1].CacheCur = mDelimiter;
     return !isFull;
 }
 
 void ColumnCompressor::WriteOutCache(bio::filtering_ostream& outputStream, size_t columnCount)
 {
-    for(int32_t iColumn = 0; iColumn < columnCount; ++columnCount)
+    for(int32_t iColumn = 0; iColumn < columnCount; ++iColumn)
     {
         auto size = mOutCache[iColumn]->CacheCur - mOutCache[iColumn]->CacheBase;
         outputStream.write(mOutCache[iColumn]->CacheBase, size);
+        outputStream.write(mNewLine, 1);
     }
     AdjustColumnCache(mTotalColumns);
 }
@@ -147,11 +165,16 @@ void ColumnCompressor::AdjustColumnCache(size_t columnCount)
 {
     std::array<double, MAX_COLUMNS> cumCacheUsed = {0};
     double cacheUsed = 0;
-    for(size_t iColumn = 0; iColumn < (columnCount - 1); ++iColumn)
+    for(size_t iColumn = 0; iColumn < columnCount; ++iColumn)
     {
         auto& columnCache = mCache[iColumn];
         cacheUsed += columnCache.CacheCur - columnCache.CacheBase;
         cumCacheUsed[iColumn] = cacheUsed;
+    }
+
+    if(nullptr == mCachePool)
+    {
+        mCachePool = new char[mCacheSize];
     }
 
     char* pCurr = mCachePool;
@@ -201,9 +224,9 @@ bool ColumnCompressor::Next(const char*& currentAddress, const char* endAddress,
         }
         ++currentAddress;
     }
-    spliters[columnCount] = currentAddress;
+    spliters[++columnCount] = currentAddress + 1;
 
-    return currentAddress != endAddress;
+    return currentAddress < endAddress;
 }
 
 ColumnCompressor::ColumnCache::type ColumnCompressor::ColumnCache::ColumnType(const char* pStart, const char* pEnd)
@@ -216,8 +239,14 @@ ColumnCompressor::ColumnCache::type ColumnCompressor::ColumnCache::ColumnType(co
     }
     catch(const std::exception& ex)
     {
-        boost::lexical_cast<double>(column);
-        return DOUBLE;
+        try
+        {
+            boost::lexical_cast<double>(column);
+            return DOUBLE;
+        }
+        catch(const std::exception& ex)
+        {
+            return STRING;
+        }
     }
-    return STRING;
 }
