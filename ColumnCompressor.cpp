@@ -4,19 +4,8 @@
 #include <boost/interprocess/file_mapping.hpp>
 #include <boost/interprocess/mapped_region.hpp> 
 #include "ColumnCompressor.h"
+#include "StreamFlusher.h"
 
-struct Flusher
-{
-    Flusher(bio::filtering_ostream& stream):mStream(stream)
-    {}
-
-    ~Flusher()
-    {
-        mStream.flush();
-    }
-
-    bio::filtering_ostream& mStream;
-};
 namespace bip = boost::interprocess;
 ColumnCompressor::ColumnCompressor(char delimiter, size_t nCacheSize)
     :mCacheSize(nCacheSize)
@@ -65,14 +54,11 @@ void ColumnCompressor::Compress(const std::string& inputFileName, const std::str
     bio::filtering_ostream outputStream;
     outputStream.push(bio::bzip2_compressor());
     outputStream.push(bio::file_sink(outputFileName));
-    Flusher flusher(outputStream);
+    StreamFlusher<bio::filtering_ostream> flusher(outputStream);
 
     //读入header
     Columns columns;
     bool hasMoreData = Next(currentAddress, endAddress, columns, mTotalColumns);
-
-    //写入元信息
-    outputStream << mTotalColumns << mNewLine[0];
 
     //写入文件头
     outputStream.write(startAddress, currentAddress - startAddress + 1);

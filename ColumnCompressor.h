@@ -4,12 +4,11 @@
 #include <memory>
 #include <array>
 #include <boost/iostreams/filtering_stream.hpp>
-static const size_t MAX_COLUMNS = 512;
+#include "CommonDef.h"
 namespace bio = boost::iostreams;
 class ColumnCompressor
 {
 public:
-    typedef std::array<const char*, MAX_COLUMNS> Columns;
     ColumnCompressor(char delimiter, size_t nCacheSize);
     ~ColumnCompressor();
 

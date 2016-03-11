@@ -2,6 +2,7 @@
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
 #include "ColumnCompressor.h"
+#include "ColumnDecompressor.h"
 
 int main(int argc, char** argv)
 {
@@ -62,7 +63,8 @@ int main(int argc, char** argv)
     }
     else
     {
-
+        ColumnDecompressor d(vm["delimiter"].as<char>(), vm["memory"].as<size_t>());
+        d.Decompress(inputFilePath, outputFilePath);
     }
 
     return 0;
