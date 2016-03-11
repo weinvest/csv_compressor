@@ -49,11 +49,11 @@ int main(int argc, char** argv)
         return -1;
     }
 
-    if(bfs::exists(outputFilePath))
-    {
-        std::cout << outputFilePath << " already exists, may be override it." << std::endl;
-        return -1;
-    }
+//    if(bfs::exists(outputFilePath))
+//    {
+//        std::cout << outputFilePath << " already exists, may be override it." << std::endl;
+//        return -1;
+//    }
 
     bool isCompress = vm["compress"].as<bool>();
     if(isCompress)

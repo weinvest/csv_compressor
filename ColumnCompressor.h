@@ -46,7 +46,6 @@ private:
     std::array<ColumnCache*, MAX_COLUMNS> mOutCache;
 
     char mDelimiter;
-    char mNewLine[1];
     char* mCachePool;
 };
 

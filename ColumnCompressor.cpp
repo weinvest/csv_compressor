@@ -15,7 +15,6 @@ ColumnCompressor::ColumnCompressor(char delimiter, size_t nCacheSize)
     ,mDelimiter(delimiter)
     ,mCachePool(nullptr)
 {
-    mNewLine[0] = '\n';
 }
 
 ColumnCompressor::~ColumnCompressor()
@@ -142,7 +141,7 @@ void ColumnCompressor::WriteOutCache(bio::filtering_ostream& outputStream, size_
     {
         auto size = mOutCache[iColumn]->CacheCur - mOutCache[iColumn]->CacheBase;
         outputStream.write(mOutCache[iColumn]->CacheBase, size);
-        outputStream.write(mNewLine, 1);
+        outputStream.write(NEWLINE, 1);
     }
     AdjustColumnCache(mTotalColumns);
 }
@@ -202,7 +201,7 @@ bool ColumnCompressor::Next(const char*& currentAddress, const char* endAddress,
 {
     columnCount = 0;
     spliters[0] = ++currentAddress;
-    while(currentAddress != endAddress && *currentAddress != mNewLine[0])
+    while(currentAddress != endAddress && *currentAddress != NEWLINE[0])
     {
         if(*currentAddress == mDelimiter)
         {

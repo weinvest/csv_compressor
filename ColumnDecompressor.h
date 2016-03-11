@@ -17,16 +17,19 @@ public:
 private:
     struct RowCache
     {
-        Columns Fields;
+        VColumns Fields;
+        std::array<char, 4096> Data;
+
+        RowCache();
         void WriteOut(bio::filtering_ostream& output, std::array<size_t, MAX_COLUMNS>& columnIndices, size_t nTotalColumns);
     };
     void WriteOutCache(bio::filtering_ostream& output, std::array<size_t, MAX_COLUMNS>& columnIndices, size_t nTotalColumns);
+    RowCache& EnsureRowCache(size_t nRow);
+    void Append2Rows(std::vector<boost::iterator_range<std::string::iterator>>& column, size_t nColumnIndex);
 
-    std::vector<RowCache*> mRows;
+    std::vector<std::shared_ptr<RowCache>> mRows;
     const size_t mCacheSize;
     char mDelimiter;
-    char mNewLine[1];
-    char* mCachePool;
 };
 #endif
 

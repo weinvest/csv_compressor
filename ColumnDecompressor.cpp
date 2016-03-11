@@ -7,14 +7,16 @@
 ColumnDecompressor::ColumnDecompressor(char delimiter, size_t nCacheSize)
     :mCacheSize(nCacheSize)
     ,mDelimiter(delimiter)
-    ,mCachePool(nullptr)
 {
-    mNewLine[0] = '\n';
 }
 
 ColumnDecompressor::~ColumnDecompressor()
 {
-    delete mCachePool;
+}
+
+ColumnDecompressor::RowCache::RowCache()
+{
+    Fields[0] = &Data[0];
 }
 
 void ColumnDecompressor::RowCache::WriteOut(bio::filtering_ostream& output, std::array<size_t, MAX_COLUMNS>& columnIndices, size_t nTotalColumns)
@@ -23,7 +25,8 @@ void ColumnDecompressor::RowCache::WriteOut(bio::filtering_ostream& output, std:
     {
         size_t index = columnIndices[iColumn];
         size_t size = Fields[index + 1] - Fields[index];
-        output.write(Fields[index], size);
+        output.write(Fields[index], size - 1);
+        output.write(NEWLINE, 1);
     }
 }
 
@@ -44,7 +47,7 @@ void ColumnDecompressor::Decompress(const std::string& inputFileName, const std:
     bio::filtering_ostream outputStream;
     outputStream.push(bio::file_sink(outputFileName));
     StreamFlusher<bio::filtering_ostream> flusher(outputStream);
-    outputStream << header << mNewLine[0];
+    outputStream << header << NEWLINE[0];
 
     //decompress meta
     size_t nTotalColumns = columns.size();
@@ -54,14 +57,13 @@ void ColumnDecompressor::Decompress(const std::string& inputFileName, const std:
         return;
     }
 
-    columns.clear();
-    bal::split(columns, sMeta, [this](auto c) {return c == mDelimiter;}, bal::token_compress_off);
+    std::vector<std::string> vMetas;
+    bal::split(vMetas, sMeta, [this](auto c) {return c == mDelimiter;}, bal::token_compress_off);
     std::array<size_t, MAX_COLUMNS> columnIndices;
     std::array<std::pair<size_t, size_t> , MAX_COLUMNS> metas;
-    for(size_t iColumn = 0; iColumn < columns.size(); ++iColumn)
+    for(size_t iColumn = 0; iColumn < vMetas.size(); ++iColumn)
     {
-        std::string sColumn = std::string(*columns[iColumn].begin(), columns[iColumn].size());
-        metas[iColumn].first = boost::lexical_cast<size_t>(sColumn);
+        metas[iColumn].first = boost::lexical_cast<size_t>(vMetas[iColumn]);
         metas[iColumn].second = iColumn;
     }
 
@@ -71,13 +73,14 @@ void ColumnDecompressor::Decompress(const std::string& inputFileName, const std:
         columnIndices[iColumn] = metas[iColumn].second;
     }
 
-    mCachePool = new char[mCacheSize];
-
     //compress others
     std::string column;
     size_t nCurrentColumn = 0;
     while(std::getline(inputStream, column))
     {
+        std::vector<boost::iterator_range<std::string::iterator>> rows;
+        bal::split(rows, column, [this](auto c) {return c == mDelimiter;}, bal::token_compress_off);
+        Append2Rows(rows, nCurrentColumn);
         ++nCurrentColumn;
         if(nCurrentColumn == nTotalColumns)
         {
@@ -88,6 +91,31 @@ void ColumnDecompressor::Decompress(const std::string& inputFileName, const std:
 
     WriteOutCache(outputStream, columnIndices, nTotalColumns);
 }
+
+void ColumnDecompressor::Append2Rows(std::vector<boost::iterator_range<std::string::iterator>>& column, size_t nColumnIndex)
+{
+    if(0 == mRows.size())
+    {
+        for(int iRow = 0; iRow < column.size(); ++iRow)
+        {
+            mRows.push_back(std::make_shared<RowCache>());
+        }
+    }
+
+    for(size_t iRow = 0; iRow < column.size(); ++iRow)
+    {
+        auto& rowCache = *mRows[iRow];
+        auto size = column[iRow].size() + 1;
+        auto pStart = rowCache.Fields[nColumnIndex];
+        for(auto it = column[iRow].begin(); it != column[iRow].end() + 1; ++it)
+        {
+            *pStart = *it;
+            ++pStart;
+        }
+        rowCache.Fields[nColumnIndex + 1] = rowCache.Fields[nColumnIndex] + size;
+    }
+}
+
 
 void ColumnDecompressor::WriteOutCache(bio::filtering_ostream& output, std::array<size_t, MAX_COLUMNS>& columnIndices, size_t nTotalColumns)
 {
