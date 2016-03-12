@@ -17,21 +17,23 @@ ColumnDecompressor::~ColumnDecompressor()
 ColumnDecompressor::RowCache::RowCache()
 {
     Fields[0] = &Data[0];
+    ColumnCount = 0;
 }
 
-void ColumnDecompressor::RowCache::WriteOut(bio::filtering_ostream& output, std::array<size_t, MAX_COLUMNS>& columnIndices, size_t nTotalColumns)
+void ColumnDecompressor::RowCache::WriteOut(bio::filtering_ostream& output, std::array<size_t, MAX_COLUMNS>& columnIndices)
 {
-    for(size_t iColumn = 0; iColumn < nTotalColumns - 1; ++iColumn)
+    for(size_t iColumn = 0; iColumn < ColumnCount - 1; ++iColumn)
     {
         size_t index = columnIndices[iColumn];
         size_t size = Fields[index + 1] - Fields[index];
         output.write(Fields[index], size);
     }
 
-    size_t lastIndex = columnIndices[nTotalColumns - 1];
+    size_t lastIndex = columnIndices[ColumnCount - 1];
     size_t lastSize = Fields[lastIndex + 1] - Fields[lastIndex];
     output.write(Fields[lastIndex], lastSize - 1);
     output.write(NEWLINE, 1);
+    ColumnCount = 0;
 }
 
 namespace bal = boost::algorithm;
@@ -110,7 +112,7 @@ void ColumnDecompressor::Decompress(const std::string& inputFileName, const std:
         needWrite = true;
         if(nCurrentColumn == nTotalColumns)
         {
-            WriteOutCache(outputStream, columnIndices, nTotalColumns, nRowCount);
+            WriteOutCache(outputStream, columnIndices, nRowCount);
             needWrite = false;
 	    nRowCount = 0;
       	    nCurrentColumn = 0;
@@ -119,7 +121,7 @@ void ColumnDecompressor::Decompress(const std::string& inputFileName, const std:
 
     if(needWrite)
     {
-        WriteOutCache(outputStream, columnIndices, nTotalColumns, nRowCount);
+        WriteOutCache(outputStream, columnIndices, nRowCount);
     }
 }
 
@@ -150,14 +152,15 @@ void ColumnDecompressor::Append2Rows(std::vector<boost::iterator_range<std::stri
             ++pStart;
         }
         rowCache.Fields[nColumnIndex + 1] = pStart;
+        rowCache.ColumnCount++;
     }
 }
 
 
-void ColumnDecompressor::WriteOutCache(bio::filtering_ostream& output, std::array<size_t, MAX_COLUMNS>& columnIndices, size_t nTotalColumns, size_t nRowCount)
+void ColumnDecompressor::WriteOutCache(bio::filtering_ostream& output, std::array<size_t, MAX_COLUMNS>& columnIndices, size_t nRowCount)
 {
     for(size_t iRow = 0; iRow < nRowCount; ++iRow)
     {
-        mRows[iRow]->WriteOut(output, columnIndices, nTotalColumns);
+        mRows[iRow]->WriteOut(output, columnIndices);
     }
 }
