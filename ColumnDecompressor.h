@@ -18,12 +18,12 @@ private:
     struct RowCache
     {
         VColumns Fields;
-        std::array<char, 4096> Data;
+        std::array<char, MAX_ROW_SIZE> Data;
 
         RowCache();
         void WriteOut(bio::filtering_ostream& output, std::array<size_t, MAX_COLUMNS>& columnIndices, size_t nTotalColumns);
     };
-    void WriteOutCache(bio::filtering_ostream& output, std::array<size_t, MAX_COLUMNS>& columnIndices, size_t nTotalColumns);
+    void WriteOutCache(bio::filtering_ostream& output, std::array<size_t, MAX_COLUMNS>& columnIndices, size_t nTotalColumns, size_t nRowCount);
     RowCache& EnsureRowCache(size_t nRow);
     void Append2Rows(std::vector<boost::iterator_range<std::string::iterator>>& column, size_t nColumnIndex);
 

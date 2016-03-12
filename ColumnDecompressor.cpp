@@ -94,6 +94,7 @@ void ColumnDecompressor::Decompress(const std::string& inputFileName, const std:
     bool needWrite = false;
     std::string column;
     size_t nCurrentColumn = 0;
+    size_t nRowCount = 0;
     while(std::getline(inputStream, column))
     {
 	if(0 == column.size())
@@ -103,6 +104,7 @@ void ColumnDecompressor::Decompress(const std::string& inputFileName, const std:
 
         std::vector<boost::iterator_range<std::string::iterator>> rows;
         bal::split(rows, column, [this](auto c) {return c == mDelimiter;}, bal::token_compress_off);
+        nRowCount = rows.size() - 1;
         Append2Rows(rows, nCurrentColumn);
         ++nCurrentColumn;
         needWrite = true;
@@ -110,22 +112,22 @@ void ColumnDecompressor::Decompress(const std::string& inputFileName, const std:
         {
             needWrite = false;
       	    nCurrentColumn = 0;
-            WriteOutCache(outputStream, columnIndices, nTotalColumns);
+            WriteOutCache(outputStream, columnIndices, nTotalColumns, nRowCount);
         }
     }
 
     if(needWrite)
     {
-        WriteOutCache(outputStream, columnIndices, nTotalColumns);
+        WriteOutCache(outputStream, columnIndices, nTotalColumns, nRowCount);
     }
 }
 
 void ColumnDecompressor::Append2Rows(std::vector<boost::iterator_range<std::string::iterator>>& column, size_t nColumnIndex)
 {
     size_t rowCount = column.size() - 1; //最后一个为,没有内容
-    if(0 == mRows.size())
+    if(mRows.size() < rowCount)
     {
-        for(int iRow = 0; iRow < rowCount; ++iRow)
+        for(size_t iRow = mRows.size(); iRow < rowCount; ++iRow)
         {
             mRows.push_back(std::make_shared<RowCache>());
         }
@@ -135,6 +137,11 @@ void ColumnDecompressor::Append2Rows(std::vector<boost::iterator_range<std::stri
     {
         auto& rowCache = *mRows[iRow];
         auto size = column[iRow].size() + 1;
+	if(size > MAX_ROW_SIZE)
+	{
+	    throw std::logic_error("line two large");
+	}
+
         auto pStart = rowCache.Fields[nColumnIndex];
         for(auto it = column[iRow].begin(); it != column[iRow].end() + 1; ++it)
         {
@@ -146,10 +153,10 @@ void ColumnDecompressor::Append2Rows(std::vector<boost::iterator_range<std::stri
 }
 
 
-void ColumnDecompressor::WriteOutCache(bio::filtering_ostream& output, std::array<size_t, MAX_COLUMNS>& columnIndices, size_t nTotalColumns)
+void ColumnDecompressor::WriteOutCache(bio::filtering_ostream& output, std::array<size_t, MAX_COLUMNS>& columnIndices, size_t nTotalColumns, size_t nRowCount)
 {
-    for(auto rowCache : mRows)
+    for(size_t iRow = 0; iRow < nRowCount; ++iRow)
     {
-        rowCache->WriteOut(output, columnIndices, nTotalColumns);
+        mRows[iRow]->WriteOut(output, columnIndices, nTotalColumns);
     }
 }

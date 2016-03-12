@@ -133,7 +133,7 @@ bool ColumnCompressor::Copy2Cache(Columns& spliters, size_t columnCount)
             //restore ColumnCache.CacheCur
             for(int32_t i = 0; i < iColumn; ++i)
             {
-                auto size = spliters[iColumn + 1] - spliters[iColumn];
+                auto size = spliters[i + 1] - spliters[i];
                 mCache[i].CacheCur -= size;
             }
             break;
