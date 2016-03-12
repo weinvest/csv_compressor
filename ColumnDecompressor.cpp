@@ -104,15 +104,16 @@ void ColumnDecompressor::Decompress(const std::string& inputFileName, const std:
 
         std::vector<boost::iterator_range<std::string::iterator>> rows;
         bal::split(rows, column, [this](auto c) {return c == mDelimiter;}, bal::token_compress_off);
-        nRowCount = rows.size() - 1;
+        nRowCount = std::max(nRowCount, rows.size() - 1);
         Append2Rows(rows, nCurrentColumn);
         ++nCurrentColumn;
         needWrite = true;
         if(nCurrentColumn == nTotalColumns)
         {
-            needWrite = false;
-      	    nCurrentColumn = 0;
             WriteOutCache(outputStream, columnIndices, nTotalColumns, nRowCount);
+            needWrite = false;
+	    nRowCount = 0;
+      	    nCurrentColumn = 0;
         }
     }
 
