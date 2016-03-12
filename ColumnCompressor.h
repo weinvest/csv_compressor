@@ -18,7 +18,7 @@ private:
     void InitializeColumnCache(Columns& columns, size_t columnCount);
     void AdjustColumnCache(size_t columnCount);
     void CheckColumnCount(bool hasMoreData, size_t columnCount);
-    bool Copy2Cache(Columns& spliters, size_t& columns);
+    bool Copy2Cache(Columns& spliters, size_t columns);
     void WriteOutCache(bio::filtering_ostream& outputStream, size_t columnCount);
     bool Next(const char*& currentAddress,const char* endAddress, Columns& spliters, size_t& columns);
 

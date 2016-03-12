@@ -93,9 +93,11 @@ void ColumnCompressor::Compress(const std::string& inputFileName, const std::str
     {
         if(!Copy2Cache(columns, columnCount))
         {
-            WriteOutCache(outputStream, columnCount);
+            WriteOutCache(outputStream, mTotalColumns);
             Copy2Cache(columns, columnCount);
+	    return true;
         }
+	return false;
     };
 
     while(hasMoreData = Next(currentAddress, endAddress, columns, columnCount))
@@ -104,14 +106,22 @@ void ColumnCompressor::Compress(const std::string& inputFileName, const std::str
         copy2Cache(columns, columnCount);
     }
 
-    copy2Cache(columns, columnCount);
-    WriteOutCache(outputStream, columnCount);
+    if(!copy2Cache(columns, columnCount))
+    {
+        WriteOutCache(outputStream, mTotalColumns);
+    }
     outputStream.flush();
 }
 
-bool ColumnCompressor::Copy2Cache(Columns& spliters, size_t& columnCount)
+bool ColumnCompressor::Copy2Cache(Columns& spliters, size_t columnCount)
 {
     bool isFull(false);
+    if(1 == columnCount && spliters[0] == (spliters[1] - 1))
+    {
+	//empty line
+	return !isFull;
+    }
+
     for(int32_t iColumn = 0; iColumn < columnCount; ++iColumn)
     {
         auto& columnCache = mCache[iColumn];
@@ -131,7 +141,7 @@ bool ColumnCompressor::Copy2Cache(Columns& spliters, size_t& columnCount)
         std::memcpy(columnCache.CacheCur, spliters[iColumn], size);
         columnCache.CacheCur += size;
     }
-    *mCache[columnCount - 1].CacheCur = mDelimiter;
+    *(mCache[columnCount - 1].CacheCur - 1)= mDelimiter;
     return !isFull;
 }
 
@@ -199,18 +209,22 @@ void ColumnCompressor::InitializeColumnCache(Columns& columns, size_t columnCoun
 
 bool ColumnCompressor::Next(const char*& currentAddress, const char* endAddress, Columns& spliters, size_t& columnCount)
 {
-    columnCount = 0;
-    spliters[0] = ++currentAddress;
-    while(currentAddress != endAddress && *currentAddress != NEWLINE[0])
+    bool isEmpty = true;
+    while(isEmpty && (currentAddress < endAddress))
     {
-        if(*currentAddress == mDelimiter)
+        columnCount = 0;
+        spliters[0] = ++currentAddress;
+        while(currentAddress < endAddress && *currentAddress != NEWLINE[0])
         {
-            spliters[++columnCount] = currentAddress + 1;
+            if(*currentAddress == mDelimiter)
+            {
+                spliters[++columnCount] = currentAddress + 1;
+            }
+            ++currentAddress;
         }
-        ++currentAddress;
+	isEmpty = currentAddress == spliters[0];
     }
     spliters[++columnCount] = currentAddress + 1;
-
     return currentAddress < endAddress;
 }
 
