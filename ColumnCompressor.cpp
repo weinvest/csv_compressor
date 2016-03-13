@@ -1,4 +1,5 @@
 #include <boost/lexical_cast.hpp>
+#include <boost/filesystem.hpp>
 #include <boost/iostreams/filter/bzip2.hpp>
 #include <boost/iostreams/device/file.hpp>
 #include <boost/interprocess/file_mapping.hpp>
@@ -7,6 +8,7 @@
 #include "StreamFlusher.h"
 
 namespace bip = boost::interprocess;
+namespace bfs = boost::filesystem;
 ColumnCompressor::ColumnCompressor(char delimiter, size_t nCacheSize)
     :mCacheSize(nCacheSize)
     ,mTotalColumns(0)
@@ -35,6 +37,11 @@ void ColumnCompressor::CheckColumnCount(bool hasMoreData, size_t columnCount)
 
 void ColumnCompressor::Compress(const std::string& inputFileName, const std::string& outputFileName)
 {
+    if(bfs::file_size(inputFileName))
+    {
+	return;
+    }
+
     //将输入文件映射到内存
     bip::file_mapping inputFile(inputFileName.c_str(), bip::read_only);  
     bip::mapped_region inputFileRegion(inputFile, bip::read_only);
